@@ -476,7 +476,63 @@ async function loadAll(){
 }
 
 document.getElementById("search").addEventListener("input",renderList);
-loadAll();
+
+/* ---- AUTO OPEN FROM URL PARAM ---- */
+/* Support: index.html?token=ADDRESS  or  index.html?t=ADDRESS */
+async function checkUrlToken(){
+  const params=new URLSearchParams(window.location.search);
+  const addr=params.get("token")||params.get("t")||params.get("ca");
+  if(!addr)return false;
+
+  // Show chart page immediately with loading state
+  const placeholder={
+    address:addr,
+    symbol:"Loading...",
+    icon:"",
+    priceStr:"-",
+    chg:0,
+    mcStr:"-",
+    age:"-",
+    dexIcon:"🟢"
+  };
+  showChartPage(placeholder);
+
+  // Fetch real data for this specific address
+  try{
+    const r=await fetch("https://api.dexscreener.com/latest/dex/tokens/"+addr);
+    const d=await r.json();
+    const pairs=d.pairs;
+    if(pairs&&pairs.length>0){
+      const pair=pairs.sort((a,b)=>(b.liquidity?.usd||0)-(a.liquidity?.usd||0))[0];
+      const t={
+        address:addr,
+        symbol:pair.baseToken?.symbol||"?",
+        icon:pair.info?.imageUrl||"",
+        priceStr:fmtPrice(pair.priceUsd),
+        priceUsd:pair.priceUsd,
+        chg:pair.priceChange?.h24||0,
+        mcStr:fmtMC(pair.marketCap||pair.fdv),
+        age:fmtAge(pair.pairCreatedAt),
+        dexIcon:"🟢"
+      };
+      curToken=t;
+      document.getElementById("ct-name").textContent=t.symbol;
+      document.getElementById("ct-icon").src=t.icon;
+      document.getElementById("ct-mc").textContent=t.mcStr;
+      document.getElementById("ct-price-live").textContent=t.priceStr;
+      // Update live data (stats/tf)
+      fetchLiveData(addr);
+    }
+  }catch(e){}
+  return true;
+}
+
+async function init(){
+  const hasToken=await checkUrlToken();
+  if(!hasToken) loadAll();
+}
+
+init();
 </script>
 </body>
 </html>
